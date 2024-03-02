@@ -34,28 +34,28 @@ namespace slicing
             this.type = type;
         }
 
-        public Vertex Source => throw new NotImplementedException();
+        public Vertex Source => source;
 
-        public Vertex Target => throw new NotImplementedException();
+        public Vertex Target => target;
 
-        public Vertex getSource()
+        public Vertex GetSource()
         {
             return source;
         }
 
-        public Vertex getTarget()
+        public Vertex GetTarget()
         {
             return target;
         }
 
-        public EdgeType getType()
+        public EdgeType GetType()
         {
             return type;
         }
 
-        //public boolean isControl()
-        //{
-        //    return type.isControl();
-        //}
+        public Boolean IsControl()
+        {
+            return type == EdgeType.CTRL_TRUE || type == EdgeType.CTRL_FALSE;
+        }
     }
 }

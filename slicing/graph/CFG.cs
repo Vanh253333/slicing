@@ -1,4 +1,5 @@
 ﻿using QuickGraph;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace slicing.graph
@@ -11,12 +12,14 @@ namespace slicing.graph
 
         public Vertex GetEntry()
         {
-            return Vertices.FirstOrDefault(v => v.GetType() == VertexType.ENTRY || v.GetType() == VertexType.INIT);
+            return Vertices.FirstOrDefault(v => v.GetTypeVertex() == VertexType.ENTRY || v.GetTypeVertex() == VertexType.INIT);
         }
 
         public Vertex GetExit()
         {
-            return Vertices.OrderByDescending(v => v.GetId()).FirstOrDefault();
+            List<Vertex> vtcs = new List<Vertex>(Vertices);
+            vtcs.Sort((v1, v2) => v2.GetId().CompareTo(v1.GetId()));
+            return vtcs[0];
         }
 
         public Vertex GetVertexWithId(int id)
@@ -24,9 +27,6 @@ namespace slicing.graph
             return Vertices.FirstOrDefault(v => v.GetId() == id);
         }
 
-        /// <summary>
-        /// </summary>
-        /// <returns></returns>
         public int CyclomaticComplexity()
         {
             return EdgeCount - VertexCount + 2;

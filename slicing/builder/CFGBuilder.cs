@@ -32,7 +32,7 @@ namespace slicing.builder
         }
 
         /// <summary>
-        /// tui chưa hiểu rõ :vv
+        /// 
         /// </summary>
         /// <param name="v"></param>
         /// <param name="parameters"></param>

@@ -49,6 +49,7 @@ namespace slicing.graph
         private int? endLine;
         private int? line;
 
+        private PDG pdg;
         private string def;
         private HashSet<string> uses;
 
@@ -155,6 +156,17 @@ namespace slicing.graph
             this.uses = uses;
         }
 
+        public void ClearDefUses()
+        {
+            def = null;
+            uses = new HashSet<string>();
+        }
+
+        public void ClearUses()
+        {
+            uses = new HashSet<string>();
+        }
+
         public int? GetStartLine()
         {
             return startLine;
@@ -190,7 +202,7 @@ namespace slicing.graph
             this.outVertices = outVertices;
         }
 
-        public VertexType GetType()
+        public VertexType GetTypeVertex()
         {
             return type;
         }
@@ -221,5 +233,55 @@ namespace slicing.graph
         {
             return ast;
         }
+
+        public void SetVisited(Boolean visited)
+        {
+            this.visited = visited;
+        }
+
+        public Boolean IsVisited()
+        {
+            return visited;
+        }
+
+        public PDG GetPDG()
+        {
+            return pdg;
+        }
+
+        public void SetPDG(PDG pdg)
+        {
+            this.pdg = pdg;
+        }
+
+        public string GetAssigment()
+        {
+            return assignment;
+        }
+
+        public void SetAssignment(string assignment)
+        {
+            this.assignment = assignment;
+        }
+
+        public string GetSubmission()
+        {
+            return submission;
+        }
+
+        public void SetSubmission(string submission)
+        {
+            this.submission = submission;
+        }
+
+        //public override string ToString()
+        //{
+        //    string result = id + "-" + type;
+        //    if (label != null && label != "")
+        //    {
+        //        result += "-" + label;
+        //    }
+        //    return result;
+        //}
     }
 }

@@ -51,6 +51,8 @@ namespace slicing.builder
             {
                 _Build(member);
             }
+
+            cdg.PrintGraph();
         }
 
         private ControlFlow _Build(AstNode n)
@@ -61,6 +63,9 @@ namespace slicing.builder
             {
                 case NamespaceDeclaration namespaceDeclaration:
                     HandleNamespaceDeclaration(namespaceDeclaration);
+                    break;
+                case AttributeSection attribute:
+                case UsingDeclaration usingDeclaration:
                     break;
                 case TypeDeclaration typeDeclaration:
                     result = HandleTypeDeclaration(typeDeclaration);
@@ -84,7 +89,7 @@ namespace slicing.builder
                     result = HandleForeachStatement(foreachStatement);
                     break;
                 case ForStatement forStatement:
-                    //result = HandleForStatement(forStatement);
+                    result = HandleForStatement(forStatement);
                     break;
                 case WhileStatement whileStatement:
                     result = HandleWhileStatement(whileStatement);
@@ -101,19 +106,25 @@ namespace slicing.builder
                 case VariableDeclarationStatement variableDeclaration:
                     result = HandleVariableDeclarationStatement(variableDeclaration);
                     break;
-                case VariableInitializer variableInitializer:
-
+                case InvocationExpression invocationExpression:
+                    result = HandleInvocationExpression(invocationExpression);
                     break;
                 case AssignmentExpression assignmentExpression:
                     result = HandleAssignmentExpression(assignmentExpression);
                     break;
+                case ReturnStatement returnStatement:
+                    result = HandleReturnStatement(returnStatement);
+                    break;
+                case BreakStatement breakStatement:
+                    result = HandleBreakStatement(breakStatement);
+                    break;
+                case ContinueStatement continueStatement:
+                    result = HandleContinueStatement(continueStatement);
+                    break;
                 default:
                     LogUnmatched(n);
                     break;
-
             }
-
-
             return result;
         }
 
@@ -135,26 +146,109 @@ namespace slicing.builder
             List<ControlFlow> flow = new List<ControlFlow>();
             foreach (Statement s in n.Statements)
             {
-                Console.WriteLine($"\tin block");
                 flow.Add(_Build(s));
             }
             return cfgBuilder.Seq(flow);
         }
 
+        /// <summary>
+        /// VariableDeclarationStatement.Variables chỉ có 1 ?? 
+        /// IndexerExpression not done yet, mảng đa chiều
+        /// </summary>
+        /// <param name="n"></param>
+        /// <returns></returns>
         private ControlFlow HandleVariableDeclarationStatement(VariableDeclarationStatement n)
         {
-            List<ControlFlow> flow = new List<ControlFlow>();
-            foreach (var v in n.Variables)
+            Vertex v = vtxCreator.VariableDeclarator(n);
+            cdg.AddVertex(v);
+            inScope.Add(v);
+            ControlFlow result = new ControlFlow(v, v);
+
+            //check for call
+            Expression init = n.Variables.First().Initializer;
+            if (init is InvocationExpression call)
             {
-                flow.Add(_Build(v));
+                result = DelegatedMethodCall(call, v, n);
             }
-            return cfgBuilder.Seq(flow);
+            else if (init is IndexerExpression indexer)
+            {
+                Console.WriteLine("sorry IndexerExpression not finshed yet");
+            }
+            else if (init is ArrayCreateExpression)
+            {
+                Console.WriteLine("sorry ArrayCreateExpression not finshed yet");
+            }
+            else
+            {
+                Console.WriteLine($"Variable Declaration that not handle yet: {init.GetType().Name}");
+            }
+
+            return result;
         }
 
-        private ControlFlow HandleVariableInitializer(VariableInitializer n)
+        /// <summary>
+        /// god, not done yet, same as Variable 
+        /// </summary>
+        /// <param name="n"></param>
+        /// <returns></returns>
+        private ControlFlow HandleAssignmentExpression(AssignmentExpression n)
         {
+            Vertex v = vtxCreator.AssignExpr(n);
+            cdg.AddVertex(v);
+            inScope.Add(v);
+            ControlFlow result = new ControlFlow(v, v);
 
+            Expression target = n.Left;
+            if (target is IndexerExpression indexer)
+            {
+                //var ind = indexer.Arguments;
+                v.GetUses().UnionWith(VertexCreator.Names(indexer));
+            }
+
+            //check for call
+            Expression value = n.Right;
+            if (value is InvocationExpression call)
+            {
+                result = DelegatedMethodCall(call, v, n);
+            }
+            else if (value is IndexerExpression ind)
+            {
+                Console.WriteLine("sorry IndexerExpression not finshed yet");
+            }
+            else
+            {
+                Console.WriteLine($"Assignment that not handle yet: {value.GetType().Name}");
+            }
+            return result;
         }
+
+
+        private ControlFlow DelegatedMethodCall(InvocationExpression call, Vertex v, AstNode n)
+        {
+            // Def and uses are set in the corresponding ACTUAL_OUT and ACTUAL_IN vertices
+            v.ClearDefUses();
+            // Set uses w.r.t. invoked objects
+            var scope = call.Target as IdentifierExpression;
+            if (scope != null)
+            {
+                string scopeVar = scope.Identifier;
+                var uses = new HashSet<string>();
+                uses.Add(scopeVar);
+                v.SetUses(uses);
+            }
+            var inFlow = Args(v, call);
+            var outFlow = ActualOut(v, n);
+            return cfgBuilder.Seq(inFlow, outFlow);
+        }
+
+        private ControlFlow HandleInvocationExpression(InvocationExpression n)
+        {
+            Vertex v = vtxCreator.InvocationExpr(n);
+            cdg.AddVertex(v);
+            inScope.Add(v);
+            return Args(v, n);
+        }
+
 
         private ControlFlow HandleExpressionStatement(ExpressionStatement n)
         {
@@ -173,7 +267,7 @@ namespace slicing.builder
         private ControlFlow HandleTypeDeclaration(TypeDeclaration n)
         {
             clsStack.Push(n.Name.ToString());
-            Console.WriteLine($"\tclsStack push :{n.Name.ToString()}");
+            //Console.WriteLine($"\tclsStack push :{n.Name.ToString()}");
             Vertex v = vtxCreator.TypeDeclaration(n);
             cdg.AddVertex(v);
 
@@ -198,6 +292,18 @@ namespace slicing.builder
                 _Build(c);
             }
 
+            foreach(var mem in n.Members)
+            {
+                if(mem is ConstructorDeclaration ||mem is MethodDeclaration || mem is FieldDeclaration || mem is PropertyDeclaration)
+                {
+                }
+                else
+                {
+                    Console.WriteLine($"TypeDeclaration not handle yet: {mem.GetType().Name}");
+                    //FieldDeclaration, PropertyDeclaration, 
+                }
+            }
+
             AddEdges(EdgeType.MEMBER_OF, v, inScope);
             clsStack.Pop();
             return null;
@@ -208,7 +314,7 @@ namespace slicing.builder
             Vertex v = vtxCreator.ConstructorDeclaration(n);
             cdg.AddVertex(v);
             inScope.Add(v);
-            Console.WriteLine($"\tinScope add v contructor");
+            //Console.WriteLine($"\tinScope add v contructor");
             PushScope();
             var parameters = n.Parameters.ToList();
             List<ControlFlow> paramFlow = Params(parameters, v, n.Name);
@@ -225,20 +331,17 @@ namespace slicing.builder
             Vertex v = vtxCreator.Parameter(n);
             cdg.AddVertex(v);
             inScope.Add(v);
-            Console.WriteLine($"\tinScope add v ParameterDeclaration");
+            //Console.WriteLine($"\tinScope add v ParameterDeclaration");
             ControlFlow flow = new ControlFlow(v, v);
-            Console.WriteLine($"\t{flow.ToString()}");
+            //Console.WriteLine($"\t{flow.ToString()}");
             return flow;
         }
 
-        //private ControlFlow ExplicitConstructorInvocationStmt(ConstructorInitializer n)
-        //{
-        //    Vertex v = vtxCreator.ExplicitConstructorInvocationStmt(n);
-        //    cdg.AddVertex(v);
-        //    inScope.Add(v);
-        //    return Args(v, n);
-        //}
-
+        /// <summary>
+        /// finish
+        /// </summary>
+        /// <param name="n"></param>
+        /// <returns></returns>
         private ControlFlow HandleMethodDeclaration(MethodDeclaration n)
         {
             Vertex v = vtxCreator.MethodDeclaration(n);
@@ -272,7 +375,7 @@ namespace slicing.builder
         }
 
         /// <summary>
-        /// not done yet
+        /// finish
         /// </summary>
         /// <param name="n"></param>
         /// <returns></returns>
@@ -306,12 +409,51 @@ namespace slicing.builder
             return result;
         }
 
-        private void HandleForStatement(ForStatement n)
+        /// <summary>
+        /// finish
+        /// </summary>
+        /// <param name="n"></param>
+        /// <returns></returns>
+        private ControlFlow HandleForStatement(ForStatement n)
         {
-            ///????
             List<Statement> init = n.Initializers.ToList();
+            List<ControlFlow> initFlow = new List<ControlFlow>();
+            foreach (Statement e in init)
+            {
+                initFlow.Add(_Build(e));
+            }
 
-
+            Vertex v = vtxCreator.ForStmt(n);
+            cdg.AddVertex(v);
+            inScope.Add(v);
+            PushScope();
+            List<Statement> update = n.Iterators.ToList();
+            List<ControlFlow> updateFlow = new List<ControlFlow>();
+            foreach (Statement e in update)
+            {
+                updateFlow.Add(_Build(e));
+            }
+            // Control flow after a continue should go to update node if present, and guard
+            // otherwise.
+            Vertex loopVtx;
+            if (updateFlow != null && updateFlow.Count > 0 && updateFlow[0] != null)
+            {
+                loopVtx = updateFlow[0].GetIn();
+            }
+            else
+            {
+                loopVtx = v;
+            }
+            loopStack.Push(loopVtx);
+            Statement body = n.EmbeddedStatement;
+            ControlFlow bodyFlow = _Build(body);
+            AddEdges(EdgeType.CTRL_TRUE, v, inScope);
+            //self edge
+            AddEdge(EdgeType.CTRL_TRUE, v, v);
+            loopStack.Pop();
+            PopScope();
+            ControlFlow result = cfgBuilder.ForStmt(v, initFlow, updateFlow, bodyFlow);
+            return result;
         }
 
         private ControlFlow HandleForeachStatement(ForeachStatement n)
@@ -336,6 +478,11 @@ namespace slicing.builder
             return result;
         }
 
+        /// <summary>
+        /// finish
+        /// </summary>
+        /// <param name="n"></param>
+        /// <returns></returns>
         private ControlFlow HandleWhileStatement(WhileStatement n)
         {
             Vertex v = vtxCreator.WhileStmt(n);
@@ -355,6 +502,11 @@ namespace slicing.builder
             return result;
         }
 
+        /// <summary>
+        /// finish
+        /// </summary>
+        /// <param name="n"></param>
+        /// <returns></returns>
         private ControlFlow HandleDoWhileStatement(DoWhileStatement n)
         {
             Vertex v = vtxCreator.DoWhileStmt(n);
@@ -375,6 +527,45 @@ namespace slicing.builder
             return result;
         }
 
+        private ControlFlow HandleReturnStatement(ReturnStatement n)
+        {
+            Vertex v = vtxCreator.ReturnStmt(n);
+            cdg.AddVertex(v);
+            inScope.Add(v);
+            if (n.Expression != null)
+            {
+                Vertex formalOut = formalOutStack.Peek();
+                if(formalOut == null)
+                {
+                    throw new InvalidOperationException($"Is {n.ToString()} inside a method that returns void?");
+                }
+                else
+                {
+                    AddEdge(EdgeType.DATA, v, formalOut);
+                }
+            }
+            return new ControlFlow(v, CFGBuilder.EXIT);
+        }
+
+        private ControlFlow HandleBreakStatement(BreakStatement n)
+        {
+            Vertex v = vtxCreator.BreakStmt(n);
+            cdg.AddVertex(v);
+            inScope.Add(v);
+            ControlFlow result = new ControlFlow(v, CFGBuilder.EXIT);
+            result.GetBreaks().Add(v);
+            return result;
+        }
+
+        private ControlFlow HandleContinueStatement(ContinueStatement n)
+        {
+            Vertex v = vtxCreator.ContinueStmt(n);
+            cdg.AddVertex(v);
+            inScope.Add(v);
+            ControlFlow result = cfgBuilder.ContinueStmt(v, loopStack.Peek());
+            return result;
+        }
+
         private ControlFlow HandleThrowStatement(ThrowStatement n)
         {
             Vertex v = vtxCreator.ThrowStmt(n);
@@ -384,34 +575,48 @@ namespace slicing.builder
             return result;
         }
 
-        /// <summary>
-        /// god, not done yet
-        /// </summary>
-        /// <param name="n"></param>
-        /// <returns></returns>
-        private ControlFlow HandleAssignmentExpression(AssignmentExpression n)
+        private Vertex ArgumentExpr(AstNode e)
         {
-            Vertex v = vtxCreator.AssignExpr(n);
+            Vertex v = vtxCreator.ArgumentExpr(e);
             cdg.AddVertex(v);
-            inScope.Add(v);
-            ControlFlow result = new ControlFlow(v, v);
-
-            Expression target = n.Left;
-            if (target is IndexerExpression indexer)
-            {
-                var ind = indexer.Arguments;
-                //v.GetUses().UnionWith(VertexCreator.Names(ind));
-            }
-
-            //check for call
-            Expression value = n.Right;
-            if (value is MemberReferenceExpression memberReference)
-            {
-
-            }
-            return result;
+            return v;
         }
 
+        private ControlFlow Args(Vertex v, InvocationExpression n)
+        {
+            MemberReferenceExpression methodRef = n.Target as MemberReferenceExpression;
+            string methodName = methodRef != null ? methodRef.MemberName : "";
+            return Args(v, n.Arguments.ToList(), methodName, n.Target);
+        }
+
+        private ControlFlow Args(Vertex v, List<Expression> args, string name, AstNode scope)
+        {
+            var result = new List<ControlFlow>();
+            var paramVertices = new List<Vertex>();
+            foreach (var e in args)
+            {
+                var a = ArgumentExpr(e);
+
+                // Remove uses in parent node.
+                v.GetUses().ExceptWith(v.GetUses());
+                AddEdge(EdgeType.CTRL_TRUE, v, a);
+                result.Add(new ControlFlow(a, a));
+                paramVertices.Add(a);
+            }
+            result.Add(new ControlFlow(v, v));
+            var methodName = CallName(name, scope);
+            PutCall(methodName, new KeyValuePair<Vertex, List<Vertex>>(v, paramVertices));
+            return cfgBuilder.Seq(result);
+        }
+
+        private void PutCall(string method, KeyValuePair<Vertex, List<Vertex>> pair)
+        {
+            if (!calls.ContainsKey(method))
+            {
+                calls[method] = new HashSet<KeyValuePair<Vertex, List<Vertex>>>();
+            }
+            calls[method].Add(pair);
+        }
 
         private Vertex FormalOut(MethodDeclaration n)
         {
@@ -446,6 +651,7 @@ namespace slicing.builder
 
             foreach (ParameterDeclaration parameter in parameters)
             {
+                //Console.WriteLine($"\t{parameter.ToString()}");
                 ControlFlow f = _Build(parameter);
                 result.Add(f);
                 Vertex paramVtx = f.GetIn();
@@ -491,7 +697,7 @@ namespace slicing.builder
             return clsStack.Peek() + "." + name;
         }
 
-        private string CallName(string name, Expression scope)
+        private string CallName(string name, AstNode scope)
         {
             string result = clsStack.Peek() + ".";
             if (scope != null)

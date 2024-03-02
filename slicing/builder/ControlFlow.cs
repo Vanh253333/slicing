@@ -26,9 +26,9 @@ namespace slicing.builder
         public ControlFlow(Vertex inVertex, Vertex outVertex)
         {
             this.inVertex = inVertex;
-            outVertices = new HashSet<Vertex>();
+            this.outVertices = new HashSet<Vertex>();
             breaks = new HashSet<Vertex>();
-            outVertices.Add(outVertex);
+            this.outVertices.Add(outVertex);
         }
 
         public ControlFlow(Vertex inVertex, HashSet<Vertex> outVertices)

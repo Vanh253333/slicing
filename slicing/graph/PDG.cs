@@ -31,7 +31,19 @@ namespace slicing.graph
         public PDG()
         {
         }
+        public void PrintGraph()
+        {
+            Console.WriteLine($"Vertices: {VertexCount}");
+            foreach (var v in Vertices)
+            {
+                Console.WriteLine($"\tVertex: {v.GetId()} \t{v.GetLabel()} \t{v.GetTypeVertex()} \t{string.Join(", ", v.GetUses())}");
+            }
 
-
+            Console.WriteLine($"Edges: {EdgeCount}");
+            foreach (var e in Edges)
+            {
+                Console.WriteLine($"\tEdge from {e.Source.GetId()}\tto {e.Target.GetId() }\t{e.GetType()}");
+            }
+        }
     }
 }
